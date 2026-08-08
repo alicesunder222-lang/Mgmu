@@ -117,7 +117,7 @@
       min-width: 92px;
       min-height: 92px;
     }
-    .qr-box canvas, .qr-box img {
+    .qr-box canvas {
       display: block;
     }
 
@@ -217,7 +217,6 @@
 <script>
 /* =========================================================
    Standard Pure JS QRCode Engine (Embedded Inline 100%)
-   ไม่ต้องต่อเน็ต / ไม่ดึงเว็บภายนอก / มี Error Correction สแกนติดแน่นอน
 ========================================================= */
 var QRCodeEngine = (function() {
   function QR8bitByte(data) {
@@ -447,10 +446,13 @@ function updateCard() {
   document.getElementById('card-degree').innerText = degree;
   document.getElementById('card-status').innerText = status;
 
-  // ข้อความใน QR Code
-  const qrText = `ชื่อ-นามสกุล: ${name}\nรหัสนักศึกษา: ${id}\nเวลาที่ออกบัตร: ${lockedIssueTime}`;
+  /* 
+     ปรับรูปแบบข้อความใน QR Code เป็น Plain Text สากล 
+     เพื่อป้องกันไม่ให้แอปสแกนในมือถือเข้าใจผิดว่าเป็น URL / ลิงก์ที่ไม่ปลอดภัย
+  */
+  const qrText = `[MGMU STUDENT CARD]\nNAME ${name}\nID ${id}\nFACULTY ${faculty}\nDEGREE ${degree}\nSTATUS ${status}\nISSUED ${lockedIssueTime}`;
 
-  // เรียกใช้ตัววาด QR Code ในเครื่อง
+  // เรียกใช้ตัวสร้าง QR Code
   const container = document.getElementById('qrcode-container');
   QRCodeEngine.generate(container, qrText, 85);
 }
@@ -479,7 +481,7 @@ function downloadCard() {
         console.error('เกิดข้อผิดพลาดในการสร้างรูปภาพ:', error);
       });
   } else {
-    alert('กรุณาเชื่อมต่ออินเทอร์เน็ตหากต้องการบันทึกเป็นไฟล์ PNG');
+    alert('กรุณาเชื่อมต่ออินเทอร์เน็ตเพื่อโหลดไลบรารีบันทึกรูปภาพ PNG');
   }
 }
 </script>
