@@ -213,71 +213,102 @@
 
 <script>
   /* =========================================================
-     โค้ดสร้าง QR Code บริสุทธิ์ (Pure Inline JS Engine)
-     ไม่ต้องพึ่งพาเว็บภายนอก ทำงานในเครื่องได้ 100%
+     SimpleQR Engine (แก้ไขระบบ Lock พื้นที่ Finder Pattern 7x7)
   ========================================================= */
   const SimpleQR = (function() {
-    function QRCode(typeNumber, errorCorrectionLevel) {
+    function QRCode(typeNumber) {
       this.typeNumber = typeNumber;
-      this.errorCorrectionLevel = errorCorrectionLevel;
       this.modules = null;
+      this.reserved = null;
       this.moduleCount = 0;
-      this.dataCache = null;
       this.dataList = [];
     }
     QRCode.prototype = {
-      addData: function(data) { this.dataList.push(new QR8bitByte(data)); this.dataCache = null; },
+      addData: function(data) { this.dataList.push(data); },
       isDark: function(row, col) { return this.modules[row][col]; },
       getModuleCount: function() { return this.moduleCount; },
       make: function() {
-        this.typeNumber = 4;
+        this.typeNumber = 5; // ขยายความจุเพื่อให้รองรับภาษาไทย + วันเวลาได้ครบ
         this.moduleCount = this.typeNumber * 4 + 17;
+        
         this.modules = new Array(this.moduleCount);
+        this.reserved = new Array(this.moduleCount);
         for (let row = 0; row < this.moduleCount; row++) {
           this.modules[row] = new Array(this.moduleCount).fill(false);
+          this.reserved[row] = new Array(this.moduleCount).fill(false);
         }
-        this.setupPositionProbePattern(0, 0);
-        this.setupPositionProbePattern(this.moduleCount - 7, 0);
-        this.setupPositionProbePattern(0, this.moduleCount - 7);
-        this.mapData(this.createData());
+        
+        // วาดและล็อกพื้นที่ Finder Pattern ทั้ง 3 มุม (บนซ้าย, บนขวา, ล่างซ้าย)
+        this.setupFinderPattern(0, 0);
+        this.setupFinderPattern(this.moduleCount - 7, 0);
+        this.setupFinderPattern(0, this.moduleCount - 7);
+
+        // จองพื้นที่ Timing Pattern
+        for (let r = 8; r < this.moduleCount - 8; r++) {
+          this.reserved[r][6] = true;
+          this.reserved[6][r] = true;
+          this.modules[r][6] = (r % 2 === 0);
+          this.modules[6][r] = (r % 2 === 0);
+        }
+
+        this.mapData(this.createDataBits());
       },
-      setupPositionProbePattern: function(r, c) {
+      setupFinderPattern: function(r, c) {
         for (let row = -1; row <= 7; row++) {
           if (r + row <= -1 || this.moduleCount <= r + row) continue;
           for (let col = -1; col <= 7; col++) {
             if (c + col <= -1 || this.moduleCount <= c + col) continue;
-            if ((0 <= row && row <= 6 && (col == 0 || col == 6)) ||
-                (0 <= col && col <= 6 && (row == 0 || row == 6)) ||
-                (2 <= row && row <= 4 && 2 <= col && col <= 4)) {
-              this.modules[r + row][c + col] = true;
+            
+            // ล็อกพื้นที่ Finder Pattern + Separator สีขาวรอบๆ ห้ามให้ข้อมูลอื่นเขียนทับ
+            this.reserved[r + row][c + col] = true;
+            
+            if (row >= 0 && row <= 6 && col >= 0 && col <= 6) {
+              if ((row === 0 || row === 6 || col === 0 || col === 6) ||
+                  (row >= 2 && row <= 4 && col >= 2 && col <= 4)) {
+                this.modules[r + row][c + col] = true;
+              } else {
+                this.modules[r + row][c + col] = false;
+              }
             } else {
               this.modules[r + row][c + col] = false;
             }
           }
         }
       },
-      createData: function() {
-        let buf = [];
+      createDataBits: function() {
+        let utf8Bytes = [];
         for (let i = 0; i < this.dataList.length; i++) {
-          let d = this.dataList[i];
-          for (let j = 0; j < d.length; j++) buf.push(d.data.charCodeAt(j));
+          let str = this.dataList[i];
+          for (let j = 0; j < str.length; j++) {
+            let code = str.charCodeAt(j);
+            if (code < 0x80) utf8Bytes.push(code);
+            else if (code < 0x800) {
+              utf8Bytes.push(0xc0 | (code >> 6));
+              utf8Bytes.push(0x80 | (code & 0x3f));
+            } else {
+              utf8Bytes.push(0xe0 | (code >> 12));
+              utf8Bytes.push(0x80 | ((code >> 6) & 0x3f));
+              utf8Bytes.push(0x80 | (code & 0x3f));
+            }
+          }
         }
-        return buf;
+        return utf8Bytes;
       },
       mapData: function(data) {
         let inc = -1, row = this.moduleCount - 1, bitIndex = 7, byteIndex = 0;
         for (let col = this.moduleCount - 1; col > 0; col -= 2) {
-          if (col == 6) col--;
+          if (col === 6) col--;
           while (true) {
             for (let c = 0; c < 2; c++) {
-              if (this.modules[row][col - c] === false) {
+              let currentCol = col - c;
+              if (!this.reserved[row][currentCol]) {
                 let dark = false;
                 if (byteIndex < data.length) {
-                  dark = (((data[byteIndex] >>> bitIndex) & 1) == 1);
+                  dark = (((data[byteIndex] >>> bitIndex) & 1) === 1);
                 }
-                this.modules[row][col - c] = dark;
+                this.modules[row][currentCol] = dark;
                 bitIndex--;
-                if (bitIndex == -1) { byteIndex++; bitIndex = 7; }
+                if (bitIndex === -1) { byteIndex++; bitIndex = 7; }
               }
             }
             row += inc;
@@ -288,10 +319,9 @@
         }
       }
     };
-    function QR8bitByte(data) { this.data = data; this.length = data.length; }
     return {
       draw: function(canvas, text, size) {
-        let qr = new QRCode(4, 1);
+        let qr = new QRCode(5);
         qr.addData(text);
         qr.make();
         let ctx = canvas.getContext('2d');
@@ -338,12 +368,12 @@
     document.getElementById('card-degree').innerText = degree;
     document.getElementById('card-status').innerText = status;
 
-    // สร้างข้อความที่จะซ่อนใน QR Code
+    // สร้างข้อความลง QR Code
     const qrText = `ชื่อ-นามสกุล: ${name}\nรหัสนักศึกษา: ${id}\nเวลาที่ออกบัตร: ${lockedIssueTime}`;
 
-    // วาด QR Code ลงบน Canvas โดยตรงในเครื่อง
+    // วาด QR Code ลงบน Canvas
     const canvas = document.getElementById('qrcode-canvas');
-    SimpleQR.draw(canvas, qrText, 75);
+    SimpleQR.draw(canvas, qrText, 85);
   }
 
   function previewImage(event) {
