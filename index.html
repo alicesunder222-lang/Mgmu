@@ -3,78 +3,129 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>ระบบทำบัตรนักศึกษา</title>
+  <title>ระบบทำบัตรนักศึกษา MGMU</title>
+  
+  <!-- ไลบรารีสำหรับแปลง บัตร เป็น รูปภาพ PNG -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html-to-image/1.11.11/html-to-image.min.js"></script>
+  <!-- ไลบรารีสำหรับสร้าง QR Code -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+
   <style>
     * { box-sizing: border-box; font-family: 'Sarabun', 'Segoe UI', sans-serif; }
-    body { background-color: #f1f5f9; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; padding: 20px; }
-    .container { display: flex; gap: 40px; flex-wrap: wrap; background: white; padding: 30px; border-radius: 16px; box-shadow: 0 10px 25px rgba(0,0,0,0.05); align-items: flex-start; }
+    body { background-color: #0f172a; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; padding: 20px; color: #f8fafc; }
+    .container { display: flex; gap: 40px; flex-wrap: wrap; background: #1e293b; padding: 30px; border-radius: 16px; box-shadow: 0 10px 25px rgba(0,0,0,0.3); align-items: flex-start; }
     
     /* ฝั่ง Form กรอกข้อมูล */
     .form-section { flex: 1; min-width: 300px; }
-    .form-section h2 { color: #0b192c; margin-top: 0; margin-bottom: 20px; }
-    .form-group { margin-bottom: 15px; }
-    .form-group label { display: block; margin-bottom: 5px; font-weight: bold; color: #334155; font-size: 14px; }
-    .form-group input, .form-group select { width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 14px; }
+    .form-section h2 { color: #f59e0b; margin-top: 0; margin-bottom: 20px; }
+    .form-group { margin-bottom: 12px; }
+    .form-group label { display: block; margin-bottom: 5px; font-weight: bold; color: #cbd5e1; font-size: 13px; }
+    .form-group input, .form-group select { width: 100%; padding: 10px; border: 1px solid #475569; background-color: #0f172a; color: white; border-radius: 6px; font-size: 14px; }
+    .form-group input:focus, .form-group select:focus { border-color: #f59e0b; outline: none; }
     
-    .btn-download { width: 100%; padding: 14px; background-color: #f59e0b; color: #0b192c; font-weight: bold; border: none; border-radius: 8px; cursor: pointer; font-size: 16px; transition: 0.2s; margin-top: 10px; box-shadow: 0 4px 10px rgba(245, 158, 11, 0.3); }
+    /* สไตล์สำหรับช่องที่ไม่สามารถแก้ไขได้ (Readonly) */
+    .form-group input[readonly] {
+      background-color: #334155;
+      color: #94a3b8;
+      cursor: not-allowed;
+      border-color: #334155;
+    }
+
+    .btn-download { width: 100%; padding: 14px; background-color: #f59e0b; color: #0b192c; font-weight: bold; border: none; border-radius: 8px; cursor: pointer; font-size: 16px; transition: 0.2s; margin-top: 15px; box-shadow: 0 4px 10px rgba(245, 158, 11, 0.3); }
     .btn-download:hover { background-color: #d97706; }
 
-    /* ฝั่งบัตรนักศึกษา (Navy Blue & Yellow Theme) */
+    /* ฝั่งบัตรนักศึกษา (Navy Blue & Gold Theme) */
     .preview-section { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; }
     
     #student-card {
       width: 350px;
       height: 540px;
-      background: linear-gradient(135deg, #0b192c 0%, #1e3e62 100%);
+      background: linear-gradient(180deg, #091322 0%, #112238 100%);
       border-radius: 16px;
       padding: 20px;
       color: white;
       position: relative;
-      box-shadow: 0 15px 30px rgba(0,0,0,0.3);
-      border: 3px solid #f59e0b;
+      box-shadow: 0 15px 30px rgba(0,0,0,0.5);
+      border: 3px solid #d97706;
       overflow: hidden;
+      display: flex;
+      flex-direction: column;
     }
 
-    /* โลโก้มหาวิทยาลัย mgmu.png วางมุมขวาบน */
+    /* Header + โลโก้มุมขวาบน */
+    .card-header-wrapper {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0 5px;
+      margin-bottom: 8px;
+    }
+    .header-title {
+      color: #f59e0b;
+      font-size: 18px;
+      font-weight: bold;
+      letter-spacing: 1.5px;
+    }
     .card-logo {
-      position: absolute;
-      top: 15px;
-      right: 15px;
-      width: 45px;
-      height: 45px;
+      width: 42px;
+      height: 42px;
       object-fit: contain;
-      z-index: 2;
     }
 
-    .card-header { text-align: center; border-bottom: 2px solid #f59e0b; padding-bottom: 10px; margin-bottom: 15px; position: relative; z-index: 1; }
-    .card-header h3 { margin: 0; color: #f59e0b; font-size: 18px; letter-spacing: 1px; padding-right: 35px; /* เว้นพื้นที่ไม่ให้ทับกับโลโก้ */ }
-    .card-header p { margin: 2px 0 0 0; font-size: 10px; color: #cbd5e1; padding-right: 35px; }
+    .card-divider {
+      height: 2px;
+      background-color: #f59e0b;
+      margin-bottom: 15px;
+      width: 100%;
+    }
 
-    .card-body { text-align: center; position: relative; z-index: 1; }
+    .card-body { text-align: center; flex: 1; }
     
-    /* ช่องรูปถ่ายนักศึกษา (ไม่มีกรอบบังรูป) */
+    /* รูปถ่ายนักศึกษา */
     .avatar-box {
-      width: 110px;
-      height: 140px;
-      border: none;
-      border-radius: 8px;
+      width: 115px;
+      height: 145px;
+      border-radius: 10px;
       margin: 0 auto 12px auto;
       overflow: hidden;
       background-color: #1e293b;
     }
     .avatar-box img { width: 100%; height: 100%; object-fit: cover; }
 
-    .student-name { font-size: 17px; font-weight: bold; color: #ffffff; margin-bottom: 2px; }
-    .student-id { font-size: 15px; color: #f59e0b; font-weight: bold; letter-spacing: 1px; margin-bottom: 12px; }
+    .student-name { font-size: 18px; font-weight: bold; color: #ffffff; margin-bottom: 4px; }
+    .student-id { font-size: 16px; color: #f59e0b; font-weight: bold; letter-spacing: 1px; margin-bottom: 14px; }
     
-    .info-group { text-align: left; font-size: 12px; background: rgba(255,255,255,0.05); padding: 10px 14px; border-radius: 8px; }
+    /* ตารางข้อมูล */
+    .info-group { text-align: left; font-size: 13px; background: rgba(255,255,255,0.04); padding: 10px 14px; border-radius: 8px; margin-bottom: 15px; }
     .info-row { display: flex; justify-content: space-between; margin-bottom: 6px; }
+    .info-row:last-child { margin-bottom: 0; }
     .info-label { color: #94a3b8; }
     .info-val { color: #ffffff; font-weight: 500; }
+    .status-highlight { color: #4ade80; font-weight: bold; }
 
-    .card-footer { position: absolute; bottom: 12px; left: 20px; right: 20px; text-align: center; font-size: 9px; color: #64748b; }
-    .barcode { width: 70%; height: 25px; background: repeating-linear-gradient(90deg, #fff, #fff 2px, #000 2px, #000 4px); margin: 0 auto 4px auto; }
+    /* พื้นที่แสดง QR Code ด้านล่าง */
+    .qr-section {
+      display: flex;
+      justify-content: flex-start;
+      align-items: center;
+      padding-left: 10px;
+      margin-top: auto;
+      margin-bottom: 20px;
+    }
+    .qr-box {
+      background: white;
+      padding: 6px;
+      border-radius: 6px;
+      display: inline-block;
+    }
+
+    .card-footer {
+      text-align: center;
+      font-size: 10px;
+      color: #64748b;
+      border-top: 1px solid rgba(255,255,255,0.05);
+      padding-top: 6px;
+    }
   </style>
 </head>
 <body>
@@ -91,26 +142,33 @@
     
     <div class="form-group">
       <label>ชื่อ-นามสกุล:</label>
-      <input type="text" id="input-name" value="นายสมชาย ใจดี" oninput="updateCard()">
+      <input type="text" id="input-name" value="นายศุภเสกข์ วรรณศรี" oninput="updateCard()">
     </div>
     
     <div class="form-group">
       <label>รหัสนักศึกษา:</label>
-      <input type="text" id="input-id" value="6601002345" oninput="updateCard()">
+      <input type="text" id="input-id" value="31012569" oninput="updateCard()">
     </div>
     
     <div class="form-group">
       <label>คณะ / สาขาวิชา:</label>
-      <input type="text" id="input-faculty" value="วิศวกรรมศาสตร์" oninput="updateCard()">
+      <input type="text" id="input-faculty" value="แพทยศาสตร์" oninput="updateCard()">
     </div>
     
     <div class="form-group">
       <label>ระดับการศึกษา:</label>
-      <select id="input-degree" onchange="updateCard()">
-        <option value="ปริญญาตรี">ปริญญาตรี</option>
-        <option value="ปริญญาโท">ปริญญาโท</option>
-        <option value="ปริญญาเอก">ปริญญาเอก</option>
-      </select>
+      <input type="text" id="input-degree" value="ปริญญาเอก" oninput="updateCard()">
+    </div>
+
+    <div class="form-group">
+      <label>สถานะนักศึกษา:</label>
+      <input type="text" id="input-status" value="นักศึกษาปกติ" oninput="updateCard()">
+    </div>
+
+    <!-- ช่องเวลาออกบัตร (ล็อกอัตโนมัติ ห้ามแก้ไข) -->
+    <div class="form-group">
+      <label>เวลาที่ออกบัตร (สร้างอัตโนมัติ - แก้ไขไม่ได้):</label>
+      <input type="text" id="input-issue-time" readonly>
     </div>
 
     <button class="btn-download" onclick="downloadCard()">💾 บันทึกบัตรเป็นรูปภาพ (PNG)</button>
@@ -120,64 +178,103 @@
   <div class="preview-section">
     <div id="student-card">
       
-      <!-- โลโก้มหาวิทยาลัยมุมขวาบน -->
-      <img src="mgmu.png" alt="University Logo" class="card-logo">
-
-      <div class="card-header">
-        <h3>MGMU UNIVERSITY</h3>
-      
+      <!-- ส่วน Header + โลโก้มุมขวาบน -->
+      <div class="card-header-wrapper">
+        <div class="header-title">MGMU UNIVERSITY</div>
+        <img src="mgmu.png" alt="Logo" class="card-logo" onerror="this.style.opacity='0.3'">
       </div>
+      <div class="card-divider"></div>
       
+      <!-- ส่วน Body ข้อมูลนักศึกษา -->
       <div class="card-body">
         <div class="avatar-box">
-          <img id="card-img" src="https://via.placeholder.com/110x140?text=PHOTO" alt="">
+          <img id="card-img" src="https://via.placeholder.com/115x145?text=PHOTO" alt="Student Photo">
         </div>
-        <div class="student-name" id="card-name">นายสมชาย ใจดี</div>
-        <div class="student-id" id="card-id">6601002345</div>
+        <div class="student-name" id="card-name"></div>
+        <div class="student-id" id="card-id"></div>
         
         <div class="info-group">
-          <div class="info-row"><span class="info-label">คณะ:</span><span class="info-val" id="card-faculty">วิศวกรรมศาสตร์</span></div>
-          <div class="info-row"><span class="info-label">ระดับ:</span><span class="info-val" id="card-degree">ปริญญาตรี</span></div>
-          <div class="info-row"><span class="info-label">สถานะ:</span><span class="info-val" style="color: #4ade80;">นักศึกษาปกติ</span></div>
+          <div class="info-row"><span class="info-label">คณะ:</span><span class="info-val" id="card-faculty">แพทยศาสตร์</span></div>
+          <div class="info-row"><span class="info-label">ระดับ:</span><span class="info-val" id="card-degree">ปริญญาเอก</span></div>
+          <div class="info-row"><span class="info-label">สถานะ:</span><span class="info-val status-highlight" id="card-status">นักศึกษาปกติ</span></div>
         </div>
       </div>
       
+      <!-- ส่วนแสดง QR Code -->
+      <div class="qr-section">
+        <div class="qr-box">
+          <div id="qrcode"></div>
+        </div>
+      </div>
+
+      <!-- Footer -->
       <div class="card-footer">
-        <div class="barcode"></div>
-        <span>บัตรประจำตัวนักศึกษา | STUDENT ID CARD</span>
+        บัตรประจำตัวนักศึกษา | STUDENT ID CARD
       </div>
     </div>
   </div>
 </div>
 
 <script>
-  // อัปเดตข้อความบนบัตร Real-time
+  let qrCodeInstance = null;
+  let lockedIssueTime = '';
+
+  // ดึงเวลาปัจจุบันจากระบบทันทีที่เปิดหน้าเว็บ
+  window.onload = function() {
+    const now = new Date();
+    lockedIssueTime = now.toLocaleDateString('th-TH') + ' ' + now.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    document.getElementById('input-issue-time').value = lockedIssueTime;
+    updateCard();
+  };
+
+  // อัปเดตข้อมูลและสร้าง QR Code โดยใช้เวลาที่ล็อกไว้
   function updateCard() {
-    document.getElementById('card-name').innerText = document.getElementById('input-name').value || 'ชื่อ-นามสกุล';
-    document.getElementById('card-id').innerText = document.getElementById('input-id').value || 'X-XXXX-XXXXX';
-    document.getElementById('card-faculty').innerText = document.getElementById('input-faculty').value || '-';
-    document.getElementById('card-degree').innerText = document.getElementById('input-degree').value;
+    const name = document.getElementById('input-name').value || '-';
+    const id = document.getElementById('input-id').value || '-';
+    const faculty = document.getElementById('input-faculty').value || '-';
+    const degree = document.getElementById('input-degree').value || '-';
+    const status = document.getElementById('input-status').value || '-';
+
+    document.getElementById('card-name').innerText = name;
+    document.getElementById('card-id').innerText = id;
+    document.getElementById('card-faculty').innerText = faculty;
+    document.getElementById('card-degree').innerText = degree;
+    document.getElementById('card-status').innerText = status;
+
+    // ฝังข้อมูลลงใน QR Code (รวมถึงเวลาที่ล็อกไว้)
+    const qrText = `ชื่อ-นามสกุล: ${name}\nรหัสนักศึกษา: ${id}\nเวลาที่ออกบัตร: ${lockedIssueTime}`;
+
+    const qrContainer = document.getElementById('qrcode');
+    qrContainer.innerHTML = '';
+    
+    qrCodeInstance = new QRCode(qrContainer, {
+      text: qrText,
+      width: 75,
+      height: 75,
+      colorDark : "#000000",
+      colorLight : "#ffffff",
+      correctLevel : QRCode.CorrectLevel.M
+    });
   }
 
   // พรีวิวรูปถ่าย
   function previewImage(event) {
     const reader = new FileReader();
     reader.onload = function() {
-      const output = document.getElementById('card-img');
-      output.src = reader.result;
+      document.getElementById('card-img').src = reader.result;
     };
     if (event.target.files[0]) {
       reader.readAsDataURL(event.target.files[0]);
     }
   }
 
-  // ดาวน์โหลดบัตรเป็น PNG
+  // บันทึกเป็นภาพ PNG
   function downloadCard() {
     const cardNode = document.getElementById('student-card');
     htmlToImage.toPng(cardNode)
       .then(function (dataUrl) {
         const link = document.createElement('a');
-        link.download = 'student-card.png';
+        link.download = 'student-card-mgmu.png';
         link.href = dataUrl;
         link.click();
       })
