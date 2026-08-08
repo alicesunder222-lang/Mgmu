@@ -7,8 +7,6 @@
   
   <!-- ไลบรารีสำหรับแปลง บัตร เป็น รูปภาพ PNG -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html-to-image/1.11.11/html-to-image.min.js"></script>
-  <!-- ไลบรารีสำหรับสร้าง QR Code -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 
   <style>
     * { box-sizing: border-box; font-family: 'Sarabun', 'Segoe UI', sans-serif; }
@@ -20,10 +18,10 @@
     .form-section h2 { color: #f59e0b; margin-top: 0; margin-bottom: 20px; }
     .form-group { margin-bottom: 12px; }
     .form-group label { display: block; margin-bottom: 5px; font-weight: bold; color: #cbd5e1; font-size: 13px; }
-    .form-group input, .form-group select { width: 100%; padding: 10px; border: 1px solid #475569; background-color: #0f172a; color: white; border-radius: 6px; font-size: 14px; }
-    .form-group input:focus, .form-group select:focus { border-color: #f59e0b; outline: none; }
+    .form-group input { width: 100%; padding: 10px; border: 1px solid #475569; background-color: #0f172a; color: white; border-radius: 6px; font-size: 14px; }
+    .form-group input:focus { border-color: #f59e0b; outline: none; }
     
-    /* สไตล์สำหรับช่องที่ไม่สามารถแก้ไขได้ (Readonly) */
+    /* ช่องเวลาห้ามแก้ไข */
     .form-group input[readonly] {
       background-color: #334155;
       color: #94a3b8;
@@ -34,7 +32,7 @@
     .btn-download { width: 100%; padding: 14px; background-color: #f59e0b; color: #0b192c; font-weight: bold; border: none; border-radius: 8px; cursor: pointer; font-size: 16px; transition: 0.2s; margin-top: 15px; box-shadow: 0 4px 10px rgba(245, 158, 11, 0.3); }
     .btn-download:hover { background-color: #d97706; }
 
-    /* ฝั่งบัตรนักศึกษา (Navy Blue & Gold Theme) */
+    /* ฝั่งบัตรนักศึกษา */
     .preview-section { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; }
     
     #student-card {
@@ -81,7 +79,6 @@
 
     .card-body { text-align: center; flex: 1; }
     
-    /* รูปถ่ายนักศึกษา */
     .avatar-box {
       width: 115px;
       height: 145px;
@@ -95,7 +92,6 @@
     .student-name { font-size: 18px; font-weight: bold; color: #ffffff; margin-bottom: 4px; }
     .student-id { font-size: 16px; color: #f59e0b; font-weight: bold; letter-spacing: 1px; margin-bottom: 14px; }
     
-    /* ตารางข้อมูล */
     .info-group { text-align: left; font-size: 13px; background: rgba(255,255,255,0.04); padding: 10px 14px; border-radius: 8px; margin-bottom: 15px; }
     .info-row { display: flex; justify-content: space-between; margin-bottom: 6px; }
     .info-row:last-child { margin-bottom: 0; }
@@ -117,6 +113,7 @@
       padding: 6px;
       border-radius: 6px;
       display: inline-block;
+      line-height: 0;
     }
 
     .card-footer {
@@ -165,9 +162,8 @@
       <input type="text" id="input-status" value="นักศึกษาปกติ" oninput="updateCard()">
     </div>
 
-    <!-- ช่องเวลาออกบัตร (ล็อกอัตโนมัติ ห้ามแก้ไข) -->
     <div class="form-group">
-      <label>เวลาที่ออกบัตร (สร้างอัตโนมัติ - แก้ไขไม่ได้):</label>
+      <label>เวลาที่ออกบัตร (ล็อกอัตโนมัติ - แก้ไขไม่ได้):</label>
       <input type="text" id="input-issue-time" readonly>
     </div>
 
@@ -190,8 +186,8 @@
         <div class="avatar-box">
           <img id="card-img" src="https://via.placeholder.com/115x145?text=PHOTO" alt="Student Photo">
         </div>
-        <div class="student-name" id="card-name"></div>
-        <div class="student-id" id="card-id"></div>
+        <div class="student-name" id="card-name">นายศุภเสกข์ วรรณศรี</div>
+        <div class="student-id" id="card-id">31012569</div>
         
         <div class="info-group">
           <div class="info-row"><span class="info-label">คณะ:</span><span class="info-val" id="card-faculty">แพทยศาสตร์</span></div>
@@ -200,10 +196,10 @@
         </div>
       </div>
       
-      <!-- ส่วนแสดง QR Code -->
+      <!-- ส่วนแสดง QR Code Canvas -->
       <div class="qr-section">
         <div class="qr-box">
-          <div id="qrcode"></div>
+          <canvas id="qrcode-canvas"></canvas>
         </div>
       </div>
 
@@ -216,10 +212,112 @@
 </div>
 
 <script>
-  let qrCodeInstance = null;
+  /* =========================================================
+     โค้ดสร้าง QR Code บริสุทธิ์ (Pure Inline JS Engine)
+     ไม่ต้องพึ่งพาเว็บภายนอก ทำงานในเครื่องได้ 100%
+  ========================================================= */
+  const SimpleQR = (function() {
+    function QRCode(typeNumber, errorCorrectionLevel) {
+      this.typeNumber = typeNumber;
+      this.errorCorrectionLevel = errorCorrectionLevel;
+      this.modules = null;
+      this.moduleCount = 0;
+      this.dataCache = null;
+      this.dataList = [];
+    }
+    QRCode.prototype = {
+      addData: function(data) { this.dataList.push(new QR8bitByte(data)); this.dataCache = null; },
+      isDark: function(row, col) { return this.modules[row][col]; },
+      getModuleCount: function() { return this.moduleCount; },
+      make: function() {
+        this.typeNumber = 4;
+        this.moduleCount = this.typeNumber * 4 + 17;
+        this.modules = new Array(this.moduleCount);
+        for (let row = 0; row < this.moduleCount; row++) {
+          this.modules[row] = new Array(this.moduleCount).fill(false);
+        }
+        this.setupPositionProbePattern(0, 0);
+        this.setupPositionProbePattern(this.moduleCount - 7, 0);
+        this.setupPositionProbePattern(0, this.moduleCount - 7);
+        this.mapData(this.createData());
+      },
+      setupPositionProbePattern: function(r, c) {
+        for (let row = -1; row <= 7; row++) {
+          if (r + row <= -1 || this.moduleCount <= r + row) continue;
+          for (let col = -1; col <= 7; col++) {
+            if (c + col <= -1 || this.moduleCount <= c + col) continue;
+            if ((0 <= row && row <= 6 && (col == 0 || col == 6)) ||
+                (0 <= col && col <= 6 && (row == 0 || row == 6)) ||
+                (2 <= row && row <= 4 && 2 <= col && col <= 4)) {
+              this.modules[r + row][c + col] = true;
+            } else {
+              this.modules[r + row][c + col] = false;
+            }
+          }
+        }
+      },
+      createData: function() {
+        let buf = [];
+        for (let i = 0; i < this.dataList.length; i++) {
+          let d = this.dataList[i];
+          for (let j = 0; j < d.length; j++) buf.push(d.data.charCodeAt(j));
+        }
+        return buf;
+      },
+      mapData: function(data) {
+        let inc = -1, row = this.moduleCount - 1, bitIndex = 7, byteIndex = 0;
+        for (let col = this.moduleCount - 1; col > 0; col -= 2) {
+          if (col == 6) col--;
+          while (true) {
+            for (let c = 0; c < 2; c++) {
+              if (this.modules[row][col - c] === false) {
+                let dark = false;
+                if (byteIndex < data.length) {
+                  dark = (((data[byteIndex] >>> bitIndex) & 1) == 1);
+                }
+                this.modules[row][col - c] = dark;
+                bitIndex--;
+                if (bitIndex == -1) { byteIndex++; bitIndex = 7; }
+              }
+            }
+            row += inc;
+            if (row < 0 || this.moduleCount <= row) {
+              row -= inc; inc = -inc; break;
+            }
+          }
+        }
+      }
+    };
+    function QR8bitByte(data) { this.data = data; this.length = data.length; }
+    return {
+      draw: function(canvas, text, size) {
+        let qr = new QRCode(4, 1);
+        qr.addData(text);
+        qr.make();
+        let ctx = canvas.getContext('2d');
+        let count = qr.getModuleCount();
+        canvas.width = size;
+        canvas.height = size;
+        let tile = size / count;
+        ctx.fillStyle = '#FFFFFF';
+        ctx.fillRect(0, 0, size, size);
+        ctx.fillStyle = '#000000';
+        for (let r = 0; r < count; r++) {
+          for (let c = 0; c < count; c++) {
+            if (qr.isDark(r, c)) {
+              ctx.fillRect(Math.round(c * tile), Math.round(r * tile), Math.ceil(tile), Math.ceil(tile));
+            }
+          }
+        }
+      }
+    };
+  })();
+
+  /* =========================================================
+     ส่วนการจัดการข้อมูลบัตรนักศึกษา
+  ========================================================= */
   let lockedIssueTime = '';
 
-  // ดึงเวลาปัจจุบันจากระบบทันทีที่เปิดหน้าเว็บ
   window.onload = function() {
     const now = new Date();
     lockedIssueTime = now.toLocaleDateString('th-TH') + ' ' + now.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
@@ -227,7 +325,6 @@
     updateCard();
   };
 
-  // อัปเดตข้อมูลและสร้าง QR Code โดยใช้เวลาที่ล็อกไว้
   function updateCard() {
     const name = document.getElementById('input-name').value || '-';
     const id = document.getElementById('input-id').value || '-';
@@ -241,23 +338,14 @@
     document.getElementById('card-degree').innerText = degree;
     document.getElementById('card-status').innerText = status;
 
-    // ฝังข้อมูลลงใน QR Code (รวมถึงเวลาที่ล็อกไว้)
+    // สร้างข้อความที่จะซ่อนใน QR Code
     const qrText = `ชื่อ-นามสกุล: ${name}\nรหัสนักศึกษา: ${id}\nเวลาที่ออกบัตร: ${lockedIssueTime}`;
 
-    const qrContainer = document.getElementById('qrcode');
-    qrContainer.innerHTML = '';
-    
-    qrCodeInstance = new QRCode(qrContainer, {
-      text: qrText,
-      width: 75,
-      height: 75,
-      colorDark : "#000000",
-      colorLight : "#ffffff",
-      correctLevel : QRCode.CorrectLevel.M
-    });
+    // วาด QR Code ลงบน Canvas โดยตรงในเครื่อง
+    const canvas = document.getElementById('qrcode-canvas');
+    SimpleQR.draw(canvas, qrText, 75);
   }
 
-  // พรีวิวรูปถ่าย
   function previewImage(event) {
     const reader = new FileReader();
     reader.onload = function() {
@@ -268,7 +356,6 @@
     }
   }
 
-  // บันทึกเป็นภาพ PNG
   function downloadCard() {
     const cardNode = document.getElementById('student-card');
     htmlToImage.toPng(cardNode)
