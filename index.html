@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>สร้างบัตรนักศึกษาอัตโนมัติจากรูปถ่าย</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html-to-image/1.11.11/html-to-image.min.js"></script>
+  <style>
+    * { box-sizing: border-box; font-family: 'Sarabun', 'Segoe UI', sans-serif; }
+    body { background-color: #f1f5f9; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; }
+    .container { display: flex; gap: 40px; flex-wrap: wrap; background: white; padding: 30px; border-radius: 16px; box-shadow: 0 10px 25px rgba(0,0,0,0.05); align-items: center; }
+    
+    /* ฝั่งควบคุม (อัปโหลดรูป) */
+    .control-section { flex: 1; min-width: 280px; text-align: center; }
+    .control-section h2 { color: #0b192c; margin-top: 0; }
+    .control-section p { color: #64748b; font-size: 14px; margin-bottom: 20px; }
+    
+    .upload-btn-wrapper {
+      position: relative;
+      overflow: hidden;
+      display: inline-block;
+      width: 100%;
+      margin-bottom: 15px;
+    }
+    .btn-upload {
+      border: 2px dashed #0b192c;
+      color: #0b192c;
+      background-color: #f8fafc;
+      padding: 20px;
+      border-radius: 12px;
+      font-size: 16px;
+      font-weight: bold;
+      width: 100%;
+      cursor: pointer;
+      transition: 0.2s;
+    }
+    .btn-upload:hover { background-color: #e2e8f0; }
+    .upload-btn-wrapper input[type=file] {
+      font-size: 100px;
+      position: absolute;
+      left: 0;
+      top: 0;
+      opacity: 0;
+      cursor: pointer;
+      height: 100%;
+      width: 100%;
+    }
+
+    .btn-download { width: 100%; padding: 14px; background-color: #f59e0b; color: #0b192c; font-weight: bold; border: none; border-radius: 8px; cursor: pointer; font-size: 16px; transition: 0.2s; box-shadow: 0 4px 10px rgba(245, 158, 11, 0.3); }
+    .btn-download:hover { background-color: #d97706; }
+
+    /* ฝั่งบัตรนักศึกษา (กรมท่า - เหลือง) */
+    #student-card {
+      width: 350px;
+      height: 540px;
+      background: linear-gradient(135deg, #0b192c 0%, #1e3e62 100%);
+      border-radius: 16px;
+      padding: 20px;
+      color: white;
+      position: relative;
+      box-shadow: 0 15px 30px rgba(0,0,0,0.3);
+      border: 3px solid #f59e0b;
+      overflow: hidden;
+    }
+
+    .card-accent {
+      position: absolute;
+      top: -30px;
+      right: -30px;
+      width: 120px;
+      height: 120px;
+      background-color: #f59e0b;
+      transform: rotate(45deg);
+      z-index: 1;
+    }
+
+    /* สไตล์โลโก้มหาวิทยาลัย mgmu.png ตรงมุมขวาบน */
+    .card-logo {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      width: 45px;
+      height: 45px;
+      object-fit: contain;
+      z-index: 2; /* ให้อยู่เหนือแถบสีเหลือง */
+    }
+
+    .card-header { text-align: center; border-bottom: 2px solid #f59e0b; padding-bottom: 10px; margin-bottom: 15px; position: relative; z-index: 1; }
+    .card-header h3 { margin: 0; color: #f59e0b; font-size: 18px; letter-spacing: 1px; }
+    .card-header p { margin: 2px 0 0 0; font-size: 10px; color: #cbd5e1; }
+
+    .card-body { text-align: center; position: relative; z-index: 1; }
+    
+    .avatar-box {
+      width: 110px;
+      height: 140px;
+      border: none;
+      border-radius: 8px;
+      margin: 0 auto 12px auto;
+      overflow: hidden;
+      background-color: #1e293b;
+    }
+    .avatar-box img { width: 100%; height: 100%; object-fit: cover; }
+
+    .student-name { font-size: 17px; font-weight: bold; color: #ffffff; margin-bottom: 2px; }
+    .student-id { font-size: 15px; color: #f59e0b; font-weight: bold; letter-spacing: 1px; margin-bottom: 12px; }
+    
+    .info-group { text-align: left; font-size: 12px; background: rgba(255,255,255,0.05); padding: 8px 12px; border-radius: 8px; }
+    .info-row { display: flex; justify-content: space-between; margin-bottom: 4px; }
+    .info-label { color: #94a3b8; }
+    .info-val { color: #ffffff; font-weight: 500; }
+
+    .card-footer { position: absolute; bottom: 12px; left: 20px; right: 20px; text-align: center; font-size: 9px; color: #64748b; }
+    .barcode { width: 70%; height: 25px; background: repeating-linear-gradient(90deg, #fff, #fff 2px, #000 2px, #000 4px); margin: 0 auto 4px auto; }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <!-- ฝั่งอัปโหลดรูปถ่าย -->
+  <div class="control-section">
+    <h2>สร้างบัตรนักศึกษา</h2>
+    <p>อัปโหลดรูปถ่ายของคุณ ระบบจะสร้างบัตรสีกรมท่า-เหลืองให้อัตโนมัติทันที</p>
+    
+    <div class="upload-btn-wrapper">
+      <button class="btn-upload">📷 เลือกรูปถ่ายนักศึกษา</button>
+      <input type="file" id="input-photo" accept="image/*" onchange="generateCard(event)">
+    </div>
+
+    <button class="btn-download" onclick="downloadCard()">💾 บันทึกบัตรเป็นรูปภาพ (PNG)</button>
+  </div>
+
+  <!-- ฝั่งแสดงบัตร (Live Preview) -->
+  <div class="preview-section">
+    <div id="student-card">
+      <div class="card-accent"></div>
+      
+      <!-- โลโก้มหาวิทยาลัยตรงมุมขวาบน -->
+      <img src="mgmu.png" alt="University Logo" class="card-logo">
+
+      <div class="card-header">
+        <h3>มหาวิทยาลัยจำลอง</h3>
+        <p>SIMULATED UNIVERSITY</p>
+      </div>
+      <div class="card-body">
+        <div class="avatar-box">
+          <img id="card-img" src="https://via.placeholder.com/110x140?text=PHOTO" alt="">
+        </div>
+        <div class="student-name" id="card-name">นายอภิสิทธิ์ เรียนดี</div>
+        <div class="student-id" id="card-id">670110294-1</div>
+        
+        <div class="info-group">
+          <div class="info-row"><span class="info-label">คณะ:</span><span class="info-val" id="card-faculty">วิศวกรรมศาสตร์</span></div>
+          <div class="info-row"><span class="info-label">สาขา:</span><span class="info-val" id="card-major">วิศวกรรมคอมพิวเตอร์</span></div>
+          <div class="info-row"><span class="info-label">ระดับ:</span><span class="info-val">ปริญญาตรี</span></div>
+        </div>
+      </div>
+      <div class="card-footer">
+        <div class="barcode"></div>
+        <span>บัตรประจำตัวนักศึกษา | STUDENT ID CARD</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  const firstNames = ["นายธนภัทร", "นางสาวณัฐชา", "นายภูริภัทร", "นางสาวพิมพ์ชนก", "นายกันตภณ", "นางสาวกัญญารัตน์"];
+  const lastNames = ["ใจดี", "มั่นคง", "เรืองรอง", "สุขสบาย", "เจริญสุข", "พูนทรัพย์"];
+  const faculties = [
+    { fac: "วิศวกรรมศาสตร์", major: "วิศวกรรมคอมพิวเตอร์" },
+    { fac: "บริหารธุรกิจ", major: "การตลาดดิจิทัล" },
+    { fac: "ศิลปศาสตร์", major: "ภาษาอังกฤษเพื่อการสื่อสาร" },
+    { fac: "นิติศาสตร์", major: "กฎหมายธุรกิจ" }
+  ];
+
+  function generateCard(event) {
+    const file = event.target.files[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        document.getElementById('card-img').src = e.target.result;
+      };
+      reader.readAsDataURL(file);
+
+      const randomName = firstNames[Math.floor(Math.random() * firstNames.length)] + " " + lastNames[Math.floor(Math.random() * lastNames.length)];
+      const randomId = "6" + Math.floor(10000000 + Math.random() * 90000000);
+      const randomFacObj = faculties[Math.floor(Math.random() * faculties.length)];
+
+      document.getElementById('card-name').innerText = randomName;
+      document.getElementById('card-id').innerText = randomId;
+      document.getElementById('card-faculty').innerText = randomFacObj.fac;
+      document.getElementById('card-major').innerText = randomFacObj.major;
+    }
+  }
+
+  function downloadCard() {
+    const cardNode = document.getElementById('student-card');
+    htmlToImage.toPng(cardNode)
+      .then(function (dataUrl) {
+        const link = document.createElement('a');
+        link.download = 'my-student-card.png';
+        link.href = dataUrl;
+        link.click();
+      })
+      .catch(function (error) {
+        console.error('เกิดข้อผิดพลาดในการสร้างรูปภาพ:', error);
+      });
+  }
+</script>
+
+</body>
+</html>
+
