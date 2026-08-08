@@ -5,9 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>ระบบทำบัตรนักศึกษา MGMU</title>
   
-  <!-- ไลบรารีมาตรฐานสำหรับแปลงบัตรเป็นภาพ PNG และสร้าง QR Code สากล -->
+  <!-- ไลบรารีแปลงบัตรเป็นภาพ PNG -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html-to-image/1.11.11/html-to-image.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 
   <style>
     * { box-sizing: border-box; font-family: 'Sarabun', 'Segoe UI', sans-serif; }
@@ -115,8 +114,10 @@
       border-radius: 6px;
       display: inline-block;
       line-height: 0;
+      min-width: 92px;
+      min-height: 92px;
     }
-    .qr-box img, .qr-box canvas {
+    .qr-box canvas, .qr-box img {
       display: block;
     }
 
@@ -214,57 +215,259 @@
 </div>
 
 <script>
-  let lockedIssueTime = '';
-
-  window.onload = function() {
-    const now = new Date();
-    lockedIssueTime = now.toLocaleDateString('th-TH') + ' ' + now.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-    document.getElementById('input-issue-time').value = lockedIssueTime;
-    updateCard();
-  };
-
-  function updateCard() {
-    const name = document.getElementById('input-name').value || '-';
-    const id = document.getElementById('input-id').value || '-';
-    const faculty = document.getElementById('input-faculty').value || '-';
-    const degree = document.getElementById('input-degree').value || '-';
-    const status = document.getElementById('input-status').value || '-';
-
-    document.getElementById('card-name').innerText = name;
-    document.getElementById('card-id').innerText = id;
-    document.getElementById('card-faculty').innerText = faculty;
-    document.getElementById('card-degree').innerText = degree;
-    document.getElementById('card-status').innerText = status;
-
-    // ข้อความที่จะซ่อนอยู่ใน QR Code
-    const qrText = `ชื่อ-นามสกุล: ${name}\nรหัสนักศึกษา: ${id}\nเวลาที่ออกบัตร: ${lockedIssueTime}`;
-
-    // สร้าง QR Code ด้วยมาตรฐาน qrcode.js
-    const container = document.getElementById('qrcode-container');
-    container.innerHTML = ''; // ล้างพื้นที่ก่อนสร้างใหม่
-    
-    new QRCode(container, {
-      text: qrText,
-      width: 85,
-      height: 85,
-      colorDark: "#000000",
-      colorLight: "#ffffff",
-      correctLevel: QRCode.CorrectLevel.M
-    });
-  }
-
-  function previewImage(event) {
-    const reader = new FileReader();
-    reader.onload = function() {
-      document.getElementById('card-img').src = reader.result;
-    };
-    if (event.target.files[0]) {
-      reader.readAsDataURL(event.target.files[0]);
+/* =========================================================
+   Standard Pure JS QRCode Engine (Embedded Inline 100%)
+   ไม่ต้องต่อเน็ต / ไม่ดึงเว็บภายนอก / มี Error Correction สแกนติดแน่นอน
+========================================================= */
+var QRCodeEngine = (function() {
+  function QR8bitByte(data) {
+    this.mode = 4;
+    this.data = data;
+    this.parsedData = [];
+    for (var i = 0, l = this.data.length; i < l; i++) {
+      var byteArray = [];
+      var code = this.data.charCodeAt(i);
+      if (code > 0x10000) {
+        byteArray[0] = 0xF0 | ((code & 0x1C0000) >>> 18);
+        byteArray[1] = 0x80 | ((code & 0x3F000) >>> 12);
+        byteArray[2] = 0x80 | ((code & 0xFC0) >>> 6);
+        byteArray[3] = 0x80 | (code & 0x3F);
+      } else if (code > 0x800) {
+        byteArray[0] = 0xE0 | ((code & 0xF000) >>> 12);
+        byteArray[1] = 0x80 | ((code & 0xFC0) >>> 6);
+        byteArray[2] = 0x80 | (code & 0x3F);
+      } else if (code > 0x80) {
+        byteArray[0] = 0xC0 | ((code & 0x7C0) >>> 6);
+        byteArray[1] = 0x80 | (code & 0x3F);
+      } else {
+        byteArray[0] = code;
+      }
+      this.parsedData.push.apply(this.parsedData, byteArray);
     }
   }
+  QR8bitByte.prototype = {
+    getLength: function() { return this.parsedData.length; },
+    write: function(buffer) {
+      for (var i = 0; i < this.parsedData.length; i++) buffer.put(this.parsedData[i], 8);
+    }
+  };
 
-  function downloadCard() {
-    const cardNode = document.getElementById('student-card');
+  function QRCodeModel(typeNumber, errorCorrectLevel) {
+    this.typeNumber = typeNumber;
+    this.errorCorrectLevel = errorCorrectLevel;
+    this.modules = null;
+    this.moduleCount = 0;
+    this.dataList = [];
+  }
+  QRCodeModel.prototype = {
+    addData: function(data) { this.dataList.push(new QR8bitByte(data)); },
+    isDark: function(row, col) { return this.modules[row][col]; },
+    getModuleCount: function() { return this.moduleCount; },
+    make: function() {
+      this.makeImpl(false, 0);
+    },
+    makeImpl: function(test, maskPattern) {
+      this.moduleCount = this.typeNumber * 4 + 17;
+      this.modules = new Array(this.moduleCount);
+      for (var row = 0; row < this.moduleCount; row++) {
+        this.modules[row] = new Array(this.moduleCount);
+        for (var col = 0; col < this.moduleCount; col++) this.modules[row][col] = null;
+      }
+      this.setupPositionProbePattern(0, 0);
+      this.setupPositionProbePattern(this.moduleCount - 7, 0);
+      this.setupPositionProbePattern(0, this.moduleCount - 7);
+      this.setupTimingPattern();
+      this.setupTypeInfo(test, maskPattern);
+      this.mapData(this.createData(), maskPattern);
+    },
+    setupPositionProbePattern: function(r, c) {
+      for (var row = -1; row <= 7; row++) {
+        if (r + row <= -1 || this.moduleCount <= r + row) continue;
+        for (var col = -1; col <= 7; col++) {
+          if (c + col <= -1 || this.moduleCount <= c + col) continue;
+          if ((0 <= row && row <= 6 && (col == 0 || col == 6)) ||
+              (0 <= col && col <= 6 && (row == 0 || row == 6)) ||
+              (2 <= row && row <= 4 && 2 <= col && col <= 4)) {
+            this.modules[r + row][c + col] = true;
+          } else {
+            this.modules[r + row][c + col] = false;
+          }
+        }
+      }
+    },
+    setupTimingPattern: function() {
+      for (var r = 8; r < this.moduleCount - 8; r++) {
+        if (this.modules[r][6] !== null) continue;
+        this.modules[r][6] = (r % 2 == 0);
+      }
+      for (var c = 8; c < this.moduleCount - 8; c++) {
+        if (this.modules[6][c] !== null) continue;
+        this.modules[6][c] = (c % 2 == 0);
+      }
+    },
+    setupTypeInfo: function(test, maskPattern) {
+      var data = (this.errorCorrectLevel << 3) | maskPattern;
+      var bits = QRUtil.getBCHTypeInfo(data);
+      for (var i = 0; i < 15; i++) {
+        var mod = (!test && ((bits >> i) & 1) == 1);
+        if (i < 6) this.modules[i][8] = mod;
+        else if (i < 8) this.modules[i + 1][8] = mod;
+        else this.modules[this.moduleCount - 15 + i][8] = mod;
+        
+        if (i < 8) this.modules[8][this.moduleCount - i - 1] = mod;
+        else if (i < 9) this.modules[8][15 - i - 1 + 1] = mod;
+        else this.modules[8][15 - i - 1] = mod;
+      }
+      this.modules[this.moduleCount - 8][8] = (!test);
+    },
+    createData: function() {
+      var buffer = new QRBitBuffer();
+      for (var i = 0; i < this.dataList.length; i++) {
+        var item = this.dataList[i];
+        buffer.put(item.mode, 4);
+        buffer.put(item.getLength(), 8);
+        item.write(buffer);
+      }
+      return buffer.buffer;
+    },
+    mapData: function(data, maskPattern) {
+      var inc = -1, row = this.moduleCount - 1, bitIndex = 7, byteIndex = 0;
+      for (var col = this.moduleCount - 1; col > 0; col -= 2) {
+        if (col == 6) col--;
+        while (true) {
+          for (var c = 0; c < 2; c++) {
+            if (this.modules[row][col - c] === null) {
+              var dark = false;
+              if (byteIndex < data.length) dark = (((data[byteIndex] >>> bitIndex) & 1) == 1);
+              var mask = QRUtil.getMask(maskPattern, row, col - c);
+              if (mask) dark = !dark;
+              this.modules[row][col - c] = dark;
+              bitIndex--;
+              if (bitIndex == -1) { byteIndex++; bitIndex = 7; }
+            }
+          }
+          row += inc;
+          if (row < 0 || this.moduleCount <= row) {
+            row -= inc; inc = -inc; break;
+          }
+        }
+      }
+    }
+  };
+
+  var QRUtil = {
+    getBCHTypeInfo: function(data) {
+      var d = data << 10;
+      while (QRUtil.getBCHDigit(d) - QRUtil.getBCHDigit(0x537) >= 0) {
+        d ^= (0x537 << (QRUtil.getBCHDigit(d) - QRUtil.getBCHDigit(0x537)));
+      }
+      return ((data << 10) | d) ^ 0x5412;
+    },
+    getBCHDigit: function(data) {
+      var digit = 0;
+      while (data != 0) { digit++; data >>>= 1; }
+      return digit;
+    },
+    getMask: function(maskPattern, i, j) {
+      switch (maskPattern) {
+        case 0: return (i + j) % 2 == 0;
+        case 1: return i % 2 == 0;
+        case 2: return j % 3 == 0;
+        case 3: return (i + j) % 3 == 0;
+        default: return false;
+      }
+    }
+  };
+
+  function QRBitBuffer() { this.buffer = []; this.length = 0; }
+  QRBitBuffer.prototype = {
+    put: function(num, length) {
+      for (var i = 0; i < length; i++) this.putBit(((num >>> (length - i - 1)) & 1) == 1);
+    },
+    putBit: function(bit) {
+      var bufIndex = Math.floor(this.length / 8);
+      if (this.buffer.length <= bufIndex) this.buffer.push(0);
+      if (bit) this.buffer[bufIndex] |= (0x80 >>> (this.length % 8));
+      this.length++;
+    }
+  };
+
+  return {
+    generate: function(container, text, size) {
+      container.innerHTML = '';
+      var qr = new QRCodeModel(6, 1);
+      qr.addData(text);
+      qr.make();
+
+      var canvas = document.createElement('canvas');
+      canvas.width = size;
+      canvas.height = size;
+      var ctx = canvas.getContext('2d');
+      var count = qr.getModuleCount();
+      var tile = size / count;
+
+      ctx.fillStyle = "#FFFFFF";
+      ctx.fillRect(0, 0, size, size);
+      ctx.fillStyle = "#000000";
+
+      for (var r = 0; r < count; r++) {
+        for (var c = 0; c < count; c++) {
+          if (qr.isDark(r, c)) {
+            ctx.fillRect(Math.round(c * tile), Math.round(r * tile), Math.ceil(tile), Math.ceil(tile));
+          }
+        }
+      }
+      container.appendChild(canvas);
+    }
+  };
+})();
+
+/* =========================================================
+   ส่วนการจัดการข้อมูลบัตรนักศึกษา
+========================================================= */
+let lockedIssueTime = '';
+
+window.onload = function() {
+  const now = new Date();
+  lockedIssueTime = now.toLocaleDateString('th-TH') + ' ' + now.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  document.getElementById('input-issue-time').value = lockedIssueTime;
+  updateCard();
+};
+
+function updateCard() {
+  const name = document.getElementById('input-name').value || '-';
+  const id = document.getElementById('input-id').value || '-';
+  const faculty = document.getElementById('input-faculty').value || '-';
+  const degree = document.getElementById('input-degree').value || '-';
+  const status = document.getElementById('input-status').value || '-';
+
+  document.getElementById('card-name').innerText = name;
+  document.getElementById('card-id').innerText = id;
+  document.getElementById('card-faculty').innerText = faculty;
+  document.getElementById('card-degree').innerText = degree;
+  document.getElementById('card-status').innerText = status;
+
+  // ข้อความใน QR Code
+  const qrText = `ชื่อ-นามสกุล: ${name}\nรหัสนักศึกษา: ${id}\nเวลาที่ออกบัตร: ${lockedIssueTime}`;
+
+  // เรียกใช้ตัววาด QR Code ในเครื่อง
+  const container = document.getElementById('qrcode-container');
+  QRCodeEngine.generate(container, qrText, 85);
+}
+
+function previewImage(event) {
+  const reader = new FileReader();
+  reader.onload = function() {
+    document.getElementById('card-img').src = reader.result;
+  };
+  if (event.target.files[0]) {
+    reader.readAsDataURL(event.target.files[0]);
+  }
+}
+
+function downloadCard() {
+  const cardNode = document.getElementById('student-card');
+  if (typeof htmlToImage !== 'undefined') {
     htmlToImage.toPng(cardNode)
       .then(function (dataUrl) {
         const link = document.createElement('a');
@@ -275,7 +478,10 @@
       .catch(function (error) {
         console.error('เกิดข้อผิดพลาดในการสร้างรูปภาพ:', error);
       });
+  } else {
+    alert('กรุณาเชื่อมต่ออินเทอร์เน็ตหากต้องการบันทึกเป็นไฟล์ PNG');
   }
+}
 </script>
 
 </body>
