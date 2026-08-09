@@ -37,7 +37,7 @@
     
     #student-card {
       width: 350px;
-      height: 560px; /* ขยายความสูงเพิ่ม */
+      height: 560px;
       background: linear-gradient(180deg, #091322 0%, #112238 100%);
       border-radius: 16px;
       padding: 20px 20px 12px 20px;
@@ -94,9 +94,22 @@
     .student-id { font-size: 16px; color: #f59e0b; font-weight: bold; letter-spacing: 1px; margin-bottom: 12px; }
     
     .info-group { text-align: left; font-size: 13px; background: rgba(255,255,255,0.04); padding: 10px 14px; border-radius: 8px; margin-bottom: 10px; }
-    .info-row { display: flex; justify-content: space-between; margin-bottom: 6px; }
+    .info-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
     .info-row:last-child { margin-bottom: 0; }
-    .info-label { color: #94a3b8; }
+    
+    /* สไตล์ไอคอนในแถบข้อมูล */
+    .info-label { 
+      color: #94a3b8; 
+      display: flex; 
+      align-items: center; 
+      gap: 6px; 
+    }
+    .row-icon {
+      width: 16px;
+      height: 16px;
+      object-fit: contain;
+    }
+
     .info-val { color: #ffffff; font-weight: 500; }
     .status-highlight { color: #4ade80; font-weight: bold; }
 
@@ -107,7 +120,7 @@
       align-items: center;
       padding-left: 10px;
       margin-top: auto;
-      margin-bottom: 10px; /* ลดระยะขอบล่างไม่ให้ดันข้อความ */
+      margin-bottom: 10px;
     }
     .qr-box {
       background: white;
@@ -124,11 +137,11 @@
       object-fit: contain;
     }
 
-    /* แก้ไขส่วน Footer ไม่ให้จมดิน */
+    /* Footer */
     .card-footer {
       text-align: center;
       font-size: 11px;
-      color: #cbd5e1; /* ปรับสีตัวอักษรให้สว่างลอยขึ้นมา */
+      color: #cbd5e1;
       border-top: 1px solid rgba(255,255,255,0.1);
       padding-top: 8px;
       padding-bottom: 2px;
@@ -200,9 +213,32 @@
         <div class="student-id" id="card-id">31012569</div>
         
         <div class="info-group">
-          <div class="info-row"><span class="info-label">คณะ:</span><span class="info-val" id="card-faculty">แพทยศาสตร์</span></div>
-          <div class="info-row"><span class="info-label">ระดับ:</span><span class="info-val" id="card-degree">ปริญญาเอก</span></div>
-          <div class="info-row"><span class="info-label">สถานะ:</span><span class="info-val status-highlight" id="card-status">นักศึกษาปกติ</span></div>
+          <!-- แถวคณะ + icon1.png -->
+          <div class="info-row">
+            <span class="info-label">
+              <img src="icon1.png" class="row-icon" alt="" onerror="this.style.display='none'">
+              คณะ:
+            </span>
+            <span class="info-val" id="card-faculty">แพทยศาสตร์</span>
+          </div>
+
+          <!-- แถวระดับชั้น + icon2.png -->
+          <div class="info-row">
+            <span class="info-label">
+              <img src="icon2.png" class="row-icon" alt="" onerror="this.style.display='none'">
+              ระดับ:
+            </span>
+            <span class="info-val" id="card-degree">ปริญญาเอก</span>
+          </div>
+
+          <!-- แถวสถานะ + icon3.png -->
+          <div class="info-row">
+            <span class="info-label">
+              <img src="icon3.png" class="row-icon" alt="" onerror="this.style.display='none'">
+              สถานะ:
+            </span>
+            <span class="info-val status-highlight" id="card-status">นักศึกษาปกติ</span>
+          </div>
         </div>
       </div>
       
